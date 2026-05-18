@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.env
+crm.db
+node_modules/
+dist/
+.venv/
+*.egg-info/

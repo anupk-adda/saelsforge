@@ -1,0 +1,36 @@
+version: "3.9"
+services:
+  crm-mcp:
+    build:
+      context: ./crm_mcp
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    volumes:
+      - crm-data:/data
+    environment:
+      - DB_PATH=/data/crm.db
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    env_file: .env
+    environment:
+      - CRM_MCP_URL=http://crm-mcp:3001
+    depends_on:
+      - crm-mcp
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+volumes:
+  crm-data:
