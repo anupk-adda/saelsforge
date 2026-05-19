@@ -24,15 +24,20 @@ def test_chat_requires_auth():
     assert r.status_code == 403
 
 def test_chat_returns_session_id():
+    mock_agent = MagicMock()
+    mock_client = MagicMock(_pending_approval=None)
     with patch("backend.main._create_at_session", new=AsyncMock(
         return_value={"session_id": "at-sess-1", "credential": {"token": "cred-1"}}
-    )), patch("backend.main.run_agent", new=AsyncMock(return_value="Here is the data")):
+    )), patch("backend.main.build_agent", return_value=(mock_agent, mock_client)), \
+       patch("backend.main.run_agent", new=AsyncMock(return_value=("Here is the data", None))), \
+       patch("backend.main._reg_credential", "cred-reg"):
         r = client.post("/chat", json={"message": "find John Smith"},
                         headers=_auth_header())
     assert r.status_code == 200
     body = r.json()
     assert "session_id" in body
     assert body["response"] == "Here is the data"
+    assert "step_up_pending" not in body
 
 def test_at_policy_fallback_when_at_unreachable():
     """When AgentTrust is unreachable, /at-policy returns a safe default."""

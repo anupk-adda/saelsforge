@@ -146,11 +146,14 @@ async def chat(req: ChatRequest,
         session.queue.put_nowait(event)
 
     # Run agent
-    agent = build_agent(at_session_id, at_credential, emit)
-    response = await run_agent(agent, req.message, emit)
+    agent, agent_client = build_agent(at_session_id, at_credential, emit)
+    response, pending_approval = await run_agent(agent, agent_client, req.message, emit)
     emit({"type": "done"})
 
-    return {"session_id": chat_id, "at_session_id": at_session_id, "response": response}
+    result: dict = {"session_id": chat_id, "at_session_id": at_session_id, "response": response}
+    if pending_approval:
+        result["step_up_pending"] = pending_approval
+    return result
 
 @app.get("/stream/{chat_id}")
 async def stream(chat_id: str):

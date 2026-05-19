@@ -34,12 +34,15 @@ def build_agent(session_id: str, at_credential: str, emit_fn):
         "If a tool call is blocked or requires approval, explain clearly to the user. "
         "Be concise."
     )
-    return create_react_agent(llm, tools, prompt=system_prompt)
+    return create_react_agent(llm, tools, prompt=system_prompt), client
 
-async def run_agent(agent, message: str, emit_fn) -> str:
-    """Run the agent on a single user message, emitting SSE events throughout."""
+async def run_agent(agent, client, message: str, emit_fn) -> tuple[str, dict | None]:
+    """Run the agent on a single user message, emitting SSE events throughout.
+    Returns (response_text, pending_approval) where pending_approval is non-None
+    only when a step_up was triggered during the run.
+    """
     emit_fn({"type": "agent_start", "message": message})
     result = await agent.ainvoke({"messages": [HumanMessage(content=message)]})
     final = result["messages"][-1].content
     emit_fn({"type": "agent_response", "content": final})
-    return final
+    return final, client._pending_approval
