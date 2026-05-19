@@ -1,7 +1,7 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Chat } from "./Chat";
 import { NodeCanvas } from "./NodeCanvas";
-import { sendChat, openStream } from "./api";
+import { sendChat, openStream, fetchActivePolicy } from "./api";
 import type { Message, NodeStatus, SseEvent, User } from "./types";
 
 const IDLE_STATUS: NodeStatus = {
@@ -21,6 +21,11 @@ export function Main({ token, user, onLogout }: Props) {
   const [nodeStatus, setNodeStatus]     = useState<NodeStatus>(IDLE_STATUS);
   const [events, setEvents]             = useState<SseEvent[]>([]);
   const [riskScore, setRiskScore]       = useState(0);
+  const [policyLabel, setPolicyLabel]   = useState<string>("…");
+
+  useEffect(() => {
+    fetchActivePolicy().then(p => setPolicyLabel(p.label));
+  }, []);
 
   const addMessage = useCallback((msg: Omit<Message, "id">) => {
     setMessages(prev => [...prev, { ...msg, id: crypto.randomUUID() }]);
@@ -113,7 +118,8 @@ export function Main({ token, user, onLogout }: Props) {
           <Chat user={user} messages={messages} loading={loading} onSend={handleSend} />
         </div>
         <div style={{ overflow: "hidden" }}>
-          <NodeCanvas nodeStatus={nodeStatus} events={events} riskScore={riskScore} />
+          <NodeCanvas nodeStatus={nodeStatus} events={events} riskScore={riskScore}
+                      policyLabel={policyLabel} />
         </div>
       </div>
     </div>
