@@ -108,6 +108,17 @@ class ChatRequest(BaseModel):
 def health():
     return {"status": "ok"}
 
+@app.get("/at-policy")
+async def at_policy():
+    try:
+        async with httpx.AsyncClient(timeout=5) as c:
+            r = await c.get(f"{settings.agenttrust_url}/api/policy/bundles/active")
+            if r.is_success:
+                return r.json()
+    except Exception:
+        pass
+    return {"label": "default", "status": "unknown"}
+
 @app.post("/chat")
 async def chat(req: ChatRequest,
                user: Annotated[dict, Depends(current_user)]):

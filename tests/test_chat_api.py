@@ -33,3 +33,25 @@ def test_chat_returns_session_id():
     body = r.json()
     assert "session_id" in body
     assert body["response"] == "Here is the data"
+
+def test_at_policy_fallback_when_at_unreachable():
+    """When AgentTrust is unreachable, /at-policy returns a safe default."""
+    import backend.main as main_module
+    original = main_module.httpx.AsyncClient
+
+    class _FailingClient:
+        async def __aenter__(self):
+            raise Exception("connection refused")
+        async def __aexit__(self, *args):
+            pass
+
+    main_module.httpx.AsyncClient = lambda **kwargs: _FailingClient()
+    try:
+        r = client.get("/at-policy")
+    finally:
+        main_module.httpx.AsyncClient = original
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body["label"] == "default"
+    assert body["status"] == "unknown"
