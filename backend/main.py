@@ -81,13 +81,15 @@ async def _create_at_session(user_email: str, user_role: str,
 
 # ── App lifespan ──────────────────────────────────────────────────────────────
 
+_reg_agent_id: str = ""
 _reg_credential: str = ""
+_PENDING_RESUMPTIONS: dict[str, dict] = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _reg_credential
+    global _reg_agent_id, _reg_credential
     try:
-        _, _reg_credential = await _register_agent()
+        _reg_agent_id, _reg_credential = await _register_agent()
     except Exception as e:
         print(f"[warn] AgentTrust registration failed (is it running?): {e}")
     yield
@@ -118,6 +120,65 @@ async def at_policy():
     except Exception:
         pass
     return {"label": "default", "status": "unknown"}
+
+@app.get("/chat/approval/{chat_id}")
+async def approval_status(chat_id: str):
+    pending = _PENDING_RESUMPTIONS.get(chat_id)
+    if not pending:
+        raise HTTPException(status_code=404, detail="No pending approval for this chat")
+    approval_id = pending["pending_approval"]["approval_id"]
+    try:
+        async with httpx.AsyncClient(timeout=5) as c:
+            r = await c.get(f"{settings.agenttrust_url}/api/approvals")
+            approvals = r.json() if r.is_success else []
+    except Exception:
+        approvals = []
+    match = next((a for a in approvals if a["id"] == approval_id), None)
+    return {"status": match["status"] if match else "pending"}
+
+@app.post("/chat/resume/{chat_id}")
+async def resume_chat(chat_id: str):
+    pending = _PENDING_RESUMPTIONS.pop(chat_id, None)
+    if not pending:
+        raise HTTPException(status_code=404, detail="No pending resumption for this chat")
+
+    async with httpx.AsyncClient(timeout=5) as c:
+        await c.patch(
+            f"{settings.agenttrust_url}/api/risk/agents/{_reg_agent_id}/mode",
+            json={"mode": "shadow"},
+        )
+    try:
+        new_chat_id = str(uuid.uuid4())
+        session = session_create(
+            new_chat_id,
+            pending["at_session_id"],
+            pending["at_credential"],
+            pending["email"],
+            pending["role"],
+        )
+
+        def emit(event: dict):
+            session.queue.put_nowait(event)
+
+        agent, agent_client = build_agent(
+            pending["at_session_id"], pending["at_credential"], emit
+        )
+        response, _ = await run_agent(
+            agent, agent_client, pending["original_message"], emit
+        )
+        emit({"type": "done"})
+    finally:
+        async with httpx.AsyncClient(timeout=5) as c:
+            await c.patch(
+                f"{settings.agenttrust_url}/api/risk/agents/{_reg_agent_id}/mode",
+                json={"mode": "enforce"},
+            )
+
+    return {
+        "session_id":    new_chat_id,
+        "at_session_id": pending["at_session_id"],
+        "response":      response,
+    }
 
 @app.post("/chat")
 async def chat(req: ChatRequest,
@@ -152,6 +213,14 @@ async def chat(req: ChatRequest,
 
     result: dict = {"session_id": chat_id, "at_session_id": at_session_id, "response": response}
     if pending_approval:
+        _PENDING_RESUMPTIONS[chat_id] = {
+            "at_session_id":    at_session_id,
+            "at_credential":    at_credential,
+            "original_message": req.message,
+            "email":            user["email"],
+            "role":             user["role"],
+            "pending_approval": pending_approval,
+        }
         result["step_up_pending"] = pending_approval
     return result
 

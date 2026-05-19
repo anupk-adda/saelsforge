@@ -60,3 +60,31 @@ def test_at_policy_fallback_when_at_unreachable():
     body = r.json()
     assert body["label"] == "default"
     assert body["status"] == "unknown"
+
+
+def test_approval_status_404_when_no_pending():
+    r = client.get("/chat/approval/nonexistent-chat-id")
+    assert r.status_code == 404
+
+
+def test_resume_404_when_no_pending():
+    r = client.post("/chat/resume/nonexistent-chat-id")
+    assert r.status_code == 404
+
+
+def test_chat_includes_step_up_pending_when_approval_required():
+    mock_agent = MagicMock()
+    mock_client = MagicMock(_pending_approval=None)
+    pending = {"approval_id": "appr-test", "tool": "update_billing_card", "args": {}}
+    with patch("backend.main._create_at_session", new=AsyncMock(
+        return_value={"session_id": "at-sess-2"}
+    )), patch("backend.main.build_agent", return_value=(mock_agent, mock_client)), \
+       patch("backend.main.run_agent",
+             new=AsyncMock(return_value=("Approval required.", pending))), \
+       patch("backend.main._reg_credential", "cred-reg"):
+        r = client.post("/chat", json={"message": "change card"},
+                        headers=_auth_header())
+    assert r.status_code == 200
+    body = r.json()
+    assert body["step_up_pending"]["approval_id"] == "appr-test"
+    assert body["step_up_pending"]["tool"] == "update_billing_card"
