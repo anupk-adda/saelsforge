@@ -41,6 +41,7 @@ class GovernedMCPClient:
         self.session_id = session_id
         self.at_credential = at_credential
         self._emit = emit
+        self._pending_approval: dict | None = None
 
     async def _call_agenttrust(self, tool: str, args: dict) -> dict:
         async with httpx.AsyncClient(timeout=10) as c:
@@ -87,11 +88,18 @@ class GovernedMCPClient:
             self._emit({"type": "tool_result", "tool": tool, "result": result})
             return result
 
-        # deny or step_up — surface to agent as ToolException
         label = decision["decision"].upper()
         reason = decision.get("reason", "")
         approval_id = decision.get("approval_id", "")
         suffix = f" (approval_id: {approval_id})" if approval_id else ""
+
+        if decision["decision"] == "step_up":
+            self._pending_approval = {
+                "approval_id": approval_id,
+                "tool": tool,
+                "args": args,
+            }
+
         raise ToolException(f"{label}: {reason}{suffix}")
 
     def as_langgraph_tools(self, tool_names: list[str] | None = None) -> list[BaseTool]:

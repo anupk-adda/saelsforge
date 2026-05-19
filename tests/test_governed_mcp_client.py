@@ -43,7 +43,7 @@ async def test_deny_raises_tool_exception():
             await client.call("update_billing_card", {"customer_id": "C-1042", "card": {}})
 
 @pytest.mark.asyncio
-async def test_step_up_raises_tool_exception():
+async def test_step_up_raises_tool_exception_and_stashes_approval():
     from langchain_core.tools import ToolException
     client = make_client()
     at_resp = {"decision": "step_up", "risk_score": 0.87,
@@ -52,7 +52,24 @@ async def test_step_up_raises_tool_exception():
 
     with patch.object(client, "_call_agenttrust", new=AsyncMock(return_value=at_resp)):
         with pytest.raises(ToolException, match="STEP_UP"):
-            await client.call("update_customer_profile", {"customer_id": "C-1042", "updates": {}})
+            await client.call("update_customer_profile", {"customer_id": "C-1042"})
+
+    assert client._pending_approval is not None
+    assert client._pending_approval["approval_id"] == "appr-xyz"
+    assert client._pending_approval["tool"] == "update_customer_profile"
+
+@pytest.mark.asyncio
+async def test_deny_does_not_stash_approval():
+    from langchain_core.tools import ToolException
+    client = make_client()
+    at_resp = {"decision": "deny", "risk_score": 0.19,
+               "credential": None, "reason": "tool not in scope_fence"}
+
+    with patch.object(client, "_call_agenttrust", new=AsyncMock(return_value=at_resp)):
+        with pytest.raises(ToolException, match="DENY"):
+            await client.call("update_billing_card", {"customer_id": "C-1042"})
+
+    assert client._pending_approval is None
 
 @pytest.mark.asyncio
 async def test_emit_called_on_allow():
