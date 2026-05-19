@@ -12,6 +12,7 @@ interface Props {
   messages: Message[];
   loading: boolean;
   onSend: (text: string) => void;
+  pendingApproval?: { approvalId: string; tool: string } | null;
 }
 
 function borderColor(msg: Message): string {
@@ -22,7 +23,7 @@ function borderColor(msg: Message): string {
   return "#2e3150";
 }
 
-export function Chat({ user, messages, loading, onSend }: Props) {
+export function Chat({ user, messages, loading, onSend, pendingApproval }: Props) {
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const showChips = messages.length === 0;
@@ -100,13 +101,29 @@ export function Chat({ user, messages, loading, onSend }: Props) {
               )}
             </div>
             <div style={{ whiteSpace: "pre-wrap" }}>{msg.content}</div>
+            {msg.decision === "step_up" && pendingApproval && (
+              <div style={{ marginTop: "0.5rem", fontSize: "0.7rem",
+                            color: "#ffd93d", borderTop: "1px solid #ffd93d33",
+                            paddingTop: "0.4rem" }}>
+                <div>Approval ID: <code style={{ fontFamily: "monospace" }}>{pendingApproval.approvalId}</code></div>
+                <div style={{ marginTop: "0.3rem", opacity: 0.8 }}>
+                  Approve in AgentTrust Admin → Approvals to continue…
+                </div>
+              </div>
+            )}
           </div>
         ))}
 
-        {loading && (
+        {loading && !pendingApproval && (
           <div style={{ alignSelf: "flex-start", color: "#8b90b2", fontSize: "0.8rem",
                         fontStyle: "italic" }}>
             Agent is working…
+          </div>
+        )}
+        {pendingApproval && (
+          <div style={{ alignSelf: "flex-start", fontSize: "0.78rem",
+                        color: "#ffd93d", fontStyle: "italic" }}>
+            Waiting for admin approval in AgentTrust…
           </div>
         )}
         <div ref={bottomRef} />

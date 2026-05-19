@@ -42,3 +42,10 @@ export interface NodeStatus {
   crmMcp: NodeState;
   sqlite: NodeState;
 }
+
+export interface ChatResponse {
+  session_id: string;
+  at_session_id: string;
+  response: string;
+  step_up_pending?: { approval_id: string; tool: string };
+}

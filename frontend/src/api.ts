@@ -1,4 +1,4 @@
-import type { User, SseEvent } from "./types";
+import type { User, SseEvent, ChatResponse } from "./types";
 
 const BASE = "";  // proxied by Vite dev server
 
@@ -15,7 +15,7 @@ export async function login(email: string, password: string): Promise<{ token: s
 export async function sendChat(
   message: string,
   token: string
-): Promise<{ session_id: string; at_session_id: string; response: string }> {
+): Promise<ChatResponse> {
   const r = await fetch(`${BASE}/chat`, {
     method: "POST",
     headers: {
@@ -47,4 +47,18 @@ export async function fetchActivePolicy(): Promise<{ label: string }> {
     if (r.ok) return r.json();
   } catch { /* AT unreachable */ }
   return { label: "default" };
+}
+
+export async function checkApproval(chatId: string): Promise<{ status: string }> {
+  try {
+    const r = await fetch(`/chat/approval/${chatId}`);
+    if (r.ok) return r.json();
+  } catch { /* network error */ }
+  return { status: "pending" };
+}
+
+export async function resumeChat(chatId: string): Promise<ChatResponse> {
+  const r = await fetch(`/chat/resume/${chatId}`, { method: "POST" });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
 }
