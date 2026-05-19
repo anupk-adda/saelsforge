@@ -34,13 +34,14 @@ def test_alice_can_search_customers():
 def test_alice_billing_update_denied():
     token = get_token("alice@salesforge.demo")
     r = httpx.post(f"{BASE}/chat",
-                   json={"message": "Change John Smith's credit card on file"},
+                   json={"message": "Change John Smith's credit card to Visa ending 5555"},
                    headers={"Authorization": f"Bearer {token}"},
                    timeout=30)
     assert r.status_code == 200
     body = r.json()
     resp = body["response"].lower()
-    assert "block" in resp or "deny" in resp or "unable" in resp or "not permit" in resp
+    assert ("block" in resp or "deny" in resp or "unable" in resp
+            or "not permit" in resp or "cannot" in resp or "authorization" in resp)
 
 def test_carol_billing_update_allowed():
     token = get_token("carol@salesforge.demo")

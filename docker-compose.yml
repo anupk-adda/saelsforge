@@ -20,6 +20,7 @@ services:
     env_file: .env
     environment:
       - CRM_MCP_URL=http://crm-mcp:3001
+      - AGENTTRUST_URL=http://host.docker.internal:8080
     depends_on:
       - crm-mcp
 

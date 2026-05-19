@@ -34,7 +34,7 @@ def build_agent(session_id: str, at_credential: str, emit_fn):
         "If a tool call is blocked or requires approval, explain clearly to the user. "
         "Be concise."
     )
-    return create_react_agent(llm, tools, state_modifier=system_prompt)
+    return create_react_agent(llm, tools, prompt=system_prompt)
 
 async def run_agent(agent, message: str, emit_fn) -> str:
     """Run the agent on a single user message, emitting SSE events throughout."""

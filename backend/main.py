@@ -13,32 +13,66 @@ from backend.agent import build_agent, run_agent
 from backend.session_store import create as session_create, get as session_get
 from backend.settings import settings
 
+# ── RBAC: role → allowed capabilities ────────────────────────────────────────
+# deny  = tool not present in scope
+# allow = tool in scope + risk below threshold
+# step_up = tool in scope + risk above threshold (behavioural signals drive this)
+
+_ALL_CAPS = [
+    "search_customers", "get_customer_profile", "get_billing_info",
+    "update_customer_profile", "update_billing_card",
+]
+
+_ROLE_SCOPE: dict[str, list[str]] = {
+    "sales_rep": [
+        "search_customers", "get_customer_profile", "get_billing_info",
+        "update_customer_profile",
+    ],
+    "sales_manager": _ALL_CAPS,
+    "billing_admin": [
+        "search_customers", "get_customer_profile", "get_billing_info",
+        "update_billing_card",
+    ],
+    "support_agent": [
+        "search_customers", "get_customer_profile", "get_billing_info",
+    ],
+    "admin": _ALL_CAPS,
+}
+
 # ── AgentTrust helpers ────────────────────────────────────────────────────────
 
 async def _register_agent() -> tuple[str, str]:
-    """Register salesforge-agent with AgentTrust. Returns (registration_id, credential)."""
+    """Register a fresh salesforge-agent instance with AgentTrust.
+    Returns (agent_id, credential). Uses a UUID suffix so every backend
+    startup gets a unique registration even if AgentTrust is still running.
+    """
+    agent_id = f"{settings.salesforge_agent_id}-{uuid.uuid4().hex[:8]}"
     async with httpx.AsyncClient(timeout=10) as c:
-        r = await c.post(f"{settings.agenttrust_url}/api/agents/register",
-                         json={"agent_id": settings.salesforge_agent_id,
-                               "name": "SalesForge CRM Assistant",
-                               "trust_tier": "C"})
+        r = await c.post(
+            f"{settings.agenttrust_url}/api/agents",
+            json={
+                "id": agent_id,
+                "trust_tier": "C",
+                "risk_class": 2,
+                "capabilities": _ALL_CAPS,
+                "risk_mode": "enforce",
+            },
+        )
         r.raise_for_status()
         data = r.json()
-        return data["agent_id"], data.get("credential", {}).get("token", "")
+        return data["id"], data["credential"]
+
 
 async def _create_at_session(user_email: str, user_role: str,
                               registration_credential: str) -> dict:
-    """Create a governed session for one chat turn."""
+    """Create a governed session for one chat turn with role-scoped capabilities."""
+    scope = _ROLE_SCOPE.get(user_role, _ALL_CAPS)
     async with httpx.AsyncClient(timeout=10) as c:
         r = await c.post(
             f"{settings.agenttrust_url}/api/sessions",
             json={
-                "agent_id": settings.salesforge_agent_id,
-                "user_context": {"email": user_email, "role": user_role},
-                "scope_fence": [
-                    "search_customers", "get_customer_profile",
-                    "get_billing_info", "update_customer_profile",
-                ],
+                "scope": scope,
+                "human": {"email": user_email, "role": user_role},
             },
             headers={"Authorization": f"Bearer {registration_credential}"},
         )
@@ -79,6 +113,10 @@ async def chat(req: ChatRequest,
                user: Annotated[dict, Depends(current_user)]):
     chat_id = str(uuid.uuid4())
 
+    if not _reg_credential:
+        raise HTTPException(status_code=503,
+                            detail="AgentTrust not connected — restart backend after starting AgentTrust")
+
     # Create AgentTrust session for this chat turn
     try:
         at_sess = await _create_at_session(user["email"], user["role"], _reg_credential)
@@ -86,10 +124,10 @@ async def chat(req: ChatRequest,
         raise HTTPException(status_code=502, detail=f"AgentTrust unavailable: {e}")
 
     at_session_id = at_sess["session_id"]
-    at_credential  = at_sess.get("credential", {}).get("token", _reg_credential)
+    # Session response has no credential; the registration credential is used for calls too.
+    at_credential = _reg_credential
 
     # Build event queue for SSE
-    queue: asyncio.Queue = asyncio.Queue()
     session = session_create(chat_id, at_session_id, at_credential,
                               user["email"], user["role"])
 
