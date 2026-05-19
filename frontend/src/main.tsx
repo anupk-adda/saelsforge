@@ -1,7 +1,7 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Chat } from "./Chat";
 import { NodeCanvas } from "./NodeCanvas";
-import { sendChat, openStream, fetchActivePolicy } from "./api";
+import { sendChat, openStream, fetchActivePolicy, checkApproval, resumeChat } from "./api";
 import type { Message, NodeStatus, SseEvent, User } from "./types";
 
 const IDLE_STATUS: NodeStatus = {
@@ -22,6 +22,16 @@ export function Main({ token, user, onLogout }: Props) {
   const [events, setEvents]             = useState<SseEvent[]>([]);
   const [riskScore, setRiskScore]       = useState(0);
   const [policyLabel, setPolicyLabel]   = useState<string>("…");
+  const [pendingApproval, setPendingApproval] = useState<{
+    chatId: string; approvalId: string; tool: string;
+  } | null>(null);
+  const approvalPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (approvalPollRef.current) clearInterval(approvalPollRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     fetchActivePolicy().then(p => setPolicyLabel(p.label));
@@ -63,19 +73,23 @@ export function Main({ token, user, onLogout }: Props) {
   }
 
   async function handleSend(text: string) {
+    if (approvalPollRef.current) {
+      clearInterval(approvalPollRef.current);
+      approvalPollRef.current = null;
+      setPendingApproval(null);
+    }
     setLoading(true);
     setEvents([]);
     setRiskScore(0);
     addMessage({ role: "user", content: text });
 
     try {
-      const { session_id, response } = await sendChat(text, token);
+      const body = await sendChat(text, token);
+      const { session_id, response } = body;
 
       // Open SSE stream for canvas animation
       const close = openStream(session_id, applyEvent);
 
-      // The response is already available synchronously from /chat
-      // SSE stream catches up with events emitted during the run
       const lastEvent = events[events.length - 1];
       addMessage({
         role: "assistant",
@@ -84,7 +98,36 @@ export function Main({ token, user, onLogout }: Props) {
         blocked: lastEvent?.decision === "deny" || lastEvent?.decision === "step_up",
       });
 
-      setTimeout(close, 3000);  // close stream after events drain
+      if (body.step_up_pending) {
+        const { approval_id, tool } = body.step_up_pending;
+        setPendingApproval({ chatId: session_id, approvalId: approval_id, tool });
+        approvalPollRef.current = setInterval(async () => {
+          const { status } = await checkApproval(session_id);
+          if (status === "approved") {
+            clearInterval(approvalPollRef.current!);
+            approvalPollRef.current = null;
+            setPendingApproval(null);
+            setLoading(true);
+            try {
+              const resumed = await resumeChat(session_id);
+              const closeResumed = openStream(resumed.session_id, applyEvent);
+              addMessage({ role: "assistant", content: resumed.response });
+              setTimeout(closeResumed, 3000);
+            } catch (err) {
+              addMessage({ role: "assistant", content: `Resume failed: ${err}`, blocked: true });
+            } finally {
+              setLoading(false);
+            }
+          } else if (status === "denied") {
+            clearInterval(approvalPollRef.current!);
+            approvalPollRef.current = null;
+            setPendingApproval(null);
+            addMessage({ role: "assistant", content: "Request denied by administrator.", blocked: true });
+          }
+        }, 3000);
+      }
+
+      setTimeout(close, 3000);
     } catch (err) {
       addMessage({ role: "assistant", content: `Error: ${err}`, blocked: true });
     } finally {
@@ -115,7 +158,10 @@ export function Main({ token, user, onLogout }: Props) {
       <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr",
                     overflow: "hidden", borderTop: "1px solid #2e3150" }}>
         <div style={{ borderRight: "1px solid #2e3150", overflow: "hidden" }}>
-          <Chat user={user} messages={messages} loading={loading} onSend={handleSend} />
+          <Chat user={user} messages={messages} loading={loading} onSend={handleSend}
+                pendingApproval={pendingApproval
+                  ? { approvalId: pendingApproval.approvalId, tool: pendingApproval.tool }
+                  : null} />
         </div>
         <div style={{ overflow: "hidden" }}>
           <NodeCanvas nodeStatus={nodeStatus} events={events} riskScore={riskScore}
