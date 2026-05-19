@@ -49,9 +49,10 @@ interface Props {
   nodeStatus: NodeStatus;
   events: SseEvent[];
   riskScore: number;
+  policyLabel?: string;
 }
 
-export function NodeCanvas({ nodeStatus, events, riskScore }: Props) {
+export function NodeCanvas({ nodeStatus, events, riskScore, policyLabel }: Props) {
   const canvasW = 1200, canvasH = 320;
 
   function getNodeCenter(id: keyof NodeStatus) {
@@ -137,7 +138,11 @@ export function NodeCanvas({ nodeStatus, events, riskScore }: Props) {
                   {node.label}
                 </text>
                 <text x={node.x + 35} y={node.y + 38}
-                      fontSize={9} fill="#8b90b2">{node.sublabel}</text>
+                      fontSize={9} fill="#8b90b2">
+                  {node.id === "agentTrust" && policyLabel
+                    ? `${policyLabel} ●`
+                    : node.sublabel}
+                </text>
                 {/* State badge */}
                 {state !== "idle" && (
                   <text x={node.x + NODE_W / 2} y={node.y + NODE_H - 8}

@@ -40,3 +40,11 @@ export function openStream(
   };
   return () => es.close();
 }
+
+export async function fetchActivePolicy(): Promise<{ label: string }> {
+  try {
+    const r = await fetch("/at-policy");
+    if (r.ok) return r.json();
+  } catch { /* AT unreachable */ }
+  return { label: "default" };
+}

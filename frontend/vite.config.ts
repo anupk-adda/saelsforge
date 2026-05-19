@@ -6,10 +6,11 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      "/auth": "http://localhost:8001",
-      "/chat": "http://localhost:8001",
-      "/stream": "http://localhost:8001",
-      "/health": "http://localhost:8001",
+      "/auth":      "http://localhost:8001",
+      "/chat":      "http://localhost:8001",
+      "/stream":    "http://localhost:8001",
+      "/health":    "http://localhost:8001",
+      "/at-policy": "http://localhost:8001",
     },
   },
 });
