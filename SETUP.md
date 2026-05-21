@@ -65,6 +65,8 @@ AgentTrust starting: edition=express log_level=info trust_domain=enterprise.ai .
 AgentTrust express listening on :8080
 ```
 
+> **For Scenario 6c (Discovery):** That scenario requires standard edition to emit Tier C discovery events. Restart AT with `AGENTTRUST_EDITION=standard AGENTTRUST_PORT=8080 ./agenttrust` before running it. See `DEMO_GUIDE.md` Scenario 6c for details.
+
 ### 1c. Smoke test
 
 ```bash

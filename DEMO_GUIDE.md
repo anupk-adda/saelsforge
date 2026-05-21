@@ -90,34 +90,21 @@ Watch the canvas:
 
 ---
 
-## Scenario 3 — Bob (Sales Manager): step_up on profile update
+## Scenario 3 — Bob (Sales Manager): step_up on billing update
 
 Click **"Switch User"** → sign in as **Bob**.
 
-Click the chip: **"Update John Smith's address to 123 Main St, New York"**
+Click the chip: **"Change John Smith's credit card on file to Visa ending in 4321"**
 
 Watch the canvas:
 1. The chain activates up to `AgentTrust`
 2. AgentTrust returns `step_up`
 3. `AgentTrust` node goes **amber** — the canvas holds here
-4. The risk gauge shows a high risk score (above the 85% threshold marker)
-5. Chat shows "⏸ Awaiting Approval"
+4. Chat shows "⏸ Awaiting Approval" with the `approval_id`
 
-**Now open the AgentTrust Admin UI** → navigate to **Sessions**.
+Leave the chat in the amber state — Scenario 6a picks up from here and shows the auto-resume.
 
-You'll see an active session for `salesforge-agent` with a pending `step_up` decision. Click the session to inspect it — you can see the tool call that was held, the risk score, and Bob's user context.
-
-**To approve:** Use the Admin UI or run:
-```bash
-# Get the session ID from the Admin UI or:
-curl -s http://localhost:8080/api/sessions | jq '.[].session_id'
-
-# Approve (the SalesForge agent must call back — step_up in this demo pauses the agent)
-```
-
-> In this demo the `step_up` causes the agent to surface the message to the user. In a production integration, an approval callback would resume the agent automatically.
-
-**What to say:** Bob is a sales manager. Profile updates require elevated approval for his role — the risk score exceeded the threshold. AgentTrust held the call and emitted a `step_up` decision. The agent communicated this to the user. In production you'd wire up a notification so a supervisor can approve or deny in the Admin UI.
+**What to say:** Bob is a sales manager. Billing card updates require a supervisor's sign-off for his role — the policy holds the call and emits a `step_up` decision with an approval ID. The agent surfaced this to the user. In Scenario 6a we'll approve it in the AT Admin UI and watch the agent resume automatically.
 
 ---
 
@@ -160,12 +147,12 @@ Run all three chips in sequence:
 
 ### 6a — Risk & Approvals: resolve a step_up live
 
-**Setup:** If Bob's step_up isn't already pending, sign in as Bob, click the **"Update John Smith's address to 123 Main St, New York"** chip, and wait for the amber canvas state (~30 seconds). Then proceed.
+**Setup:** If Bob's step_up isn't already pending, sign in as Bob, click the **"Change John Smith's credit card on file to Visa ending in 4321"** chip, and wait for the amber canvas state (~30 seconds). Then proceed.
 
 Navigate to the **AgentTrust Admin UI** → sidebar → **Risk & Approvals**.
 
 The page shows **Pending Approvals (1)** — an orange card containing:
-- Agent ID, tool name (`update_customer_profile`), reason, session ID
+- Agent ID, tool name (`update_billing_card`), reason, session ID
 
 In the **approver ID** field at the top of the section, type any email — e.g. `admin@salesforge.io`.
 
@@ -195,14 +182,21 @@ Scroll to the **Simulate** section: paste any JSON `PolicyInput` and get a decis
 
 ### 6c — Discovery: rogue agent detection
 
-**Setup:** None — fully independent.
+**Setup:** This scenario requires AgentTrust running in **standard edition** (the default express edition doesn't route Tier C events). Run Scenarios 1–5 first, then restart AT before this sub-scenario:
+
+```bash
+# In the AgentTrust terminal — Ctrl-C the running process, then:
+AGENTTRUST_EDITION=standard AGENTTRUST_PORT=8080 ./agenttrust
+```
+
+> Note: Scenarios 1–5 won't work while AT is in standard edition because SalesForge's Bearer credentials aren't OIDC JWTs. Restart in express mode (`AGENTTRUST_PORT=8080 ./agenttrust`) to restore the main demo.
 
 Open a terminal and run:
 
 ```bash
 curl -s -X POST http://localhost:8080/api/sessions \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer rogue-agent-xyz" \
+  -H "Authorization: ROGUE rogue-agent-xyz" \
   -d '{"scope": ["get_billing_info", "update_billing_card"]}' | jq .
 ```
 
@@ -214,7 +208,7 @@ Expected output:
 
 Navigate to the **AgentTrust Admin UI** → sidebar → **Discovery**.
 
-A new event appears showing the source IP, empty tool target, presented identity `Bearer rogue-agent-xyz`, and status **pending**.
+A new event appears showing the source IP, empty tool target, presented identity `ROGUE rogue-agent-xyz`, and status **pending**.
 
 Click **Block** — the IP is added to the blocklist; further attempts are rejected before verification even runs.
 

@@ -5,6 +5,7 @@ const PROMPT_CHIPS = [
   "Find John Smith and show me his profile and billing information",
   "Update John Smith's address to 123 Main St, New York",
   "Change John Smith's credit card on file",
+  "Change John Smith's credit card on file to Visa ending in 4321",
 ];
 
 interface Props {
