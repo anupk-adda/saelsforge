@@ -53,13 +53,13 @@ def test_get_billing_info(tools):
     assert "email" not in result          # profile not in billing
 
 def test_update_customer_profile(tools):
-    result = tools.update_customer_profile("C-1042", {"address": "99 New St"})
+    result = tools.update_customer_profile("C-1042", updates={"address": "99 New St"})
     assert result["updated"] is True
     profile = tools.get_customer_profile("C-1042")
     assert profile["address"] == "99 New St"
 
 def test_update_billing_card(tools):
-    result = tools.update_billing_card("C-1042", {"last4": "9999", "card_type": "Visa"})
+    result = tools.update_billing_card("C-1042", card={"last4": "9999", "card_type": "Visa"})
     assert result["updated"] is True
     billing = tools.get_billing_info("C-1042")
     assert billing["last4"] == "9999"
