@@ -152,13 +152,83 @@ Run all three chips in sequence:
 
 ---
 
+## Scenario 6 — AT Admin: Approvals, Policy, Discovery
+
+> Each sub-scenario below is self-contained — show any one in isolation, in any order, or skip any of them depending on available time.
+
+---
+
+### 6a — Risk & Approvals: resolve a step_up live
+
+**Setup:** If Bob's step_up isn't already pending, sign in as Bob, click the **"Update John Smith's address to 123 Main St, New York"** chip, and wait for the amber canvas state (~30 seconds). Then proceed.
+
+Navigate to the **AgentTrust Admin UI** → sidebar → **Risk & Approvals**.
+
+The page shows **Pending Approvals (1)** — an orange card containing:
+- Agent ID, tool name (`update_customer_profile`), reason, session ID
+
+In the **approver ID** field at the top of the section, type any email — e.g. `admin@salesforge.io`.
+
+Click **Approve**.
+
+Switch back to the SalesForge tab.
+
+Within ≤3 seconds: the canvas goes green and Bob's chat response appears.
+
+**What to say:** The approval happened entirely in AgentTrust. SalesForge polled for status and re-ran the agent automatically. The app developer wrote zero approval-handling code — they wrapped their tool client in `GovernedMCPClient` and AgentTrust handled the rest: the step_up decision, the approval queue, the credential gate.
+
+---
+
+### 6b — Policy: who owns the rules?
+
+**Setup:** None — fully independent.
+
+Navigate to the **AgentTrust Admin UI** → sidebar → **Policy**.
+
+The bundle list is empty — no custom bundles have been uploaded. Point to the SalesForge canvas: the AgentTrust node shows **`default ●`** — the platform is running its embedded default Rego policy. The badge on the canvas and the empty bundle list are two views of the same fact.
+
+Scroll to the **Simulate** section: paste any JSON `PolicyInput` and get a decision without running an agent.
+
+**What to say:** SalesForge's developer never wrote a governance policy. They registered their agent, declared its capabilities and risk class, and shipped. The security or platform team owns the Rego — it lives here, versioned and auditable. The same policy governs any agent that registers with AgentTrust: a CrewAI agent, a raw API client, an MCP tool — without touching application code. Simulate lets a security engineer validate a policy change before activating it in production.
+
+---
+
+### 6c — Discovery: rogue agent detection
+
+**Setup:** None — fully independent.
+
+Open a terminal and run:
+
+```bash
+curl -s -X POST http://localhost:8080/api/sessions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer rogue-agent-xyz" \
+  -d '{"scope": ["get_billing_info", "update_billing_card"]}' | jq .
+```
+
+Expected output:
+
+```json
+{"error": "unregistered agent: access denied"}
+```
+
+Navigate to the **AgentTrust Admin UI** → sidebar → **Discovery**.
+
+A new event appears showing the source IP, empty tool target, presented identity `Bearer rogue-agent-xyz`, and status **pending**.
+
+Click **Block** — the IP is added to the blocklist; further attempts are rejected before verification even runs.
+
+**What to say:** That curl represents any AI agent that tries to call tools through this platform without being registered — a shadow-IT chatbot, a third-party integration, a rogue script. It gets denied and catalogued here. The operator can watch it, block the IP, or register it as a legitimate agent. This is the runtime equivalent of zero-trust network access, applied to AI agents. Rogue agents announce themselves when they try to use the infrastructure.
+
+---
+
 ## What changed in AgentTrust
 
-After running all five scenarios, open the AgentTrust Admin UI and navigate to the **Audit** page.
+After running the scenarios, open the **AgentTrust Admin UI** to explore what was recorded.
 
-Every governance decision from all five scenarios is logged there — tool name, user context, decision, risk score, timestamp. This is the audit trail. Every `deny`, every `step_up`, every `allow` is recorded with its full context.
+**Audit** — every governance decision from all scenarios is logged: tool name, user context, decision, risk score, timestamp. Every `deny`, every `step_up`, every `allow` is recorded with its full context. In a production deployment this audit stream goes to Kafka/Redpanda for SIEM ingestion.
 
-In a production deployment this audit stream goes to Kafka/Redpanda for SIEM ingestion.
+**Scenario 6** above walks through the other key admin pages: Approvals (act on a pending step_up), Policy (read the Rego governing every decision), and Discovery (detect and block unregistered agents).
 
 ---
 
