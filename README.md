@@ -71,6 +71,20 @@ pytest tests/ -v --ignore=tests/test_integration.py
 pytest tests/test_integration.py -v -m integration
 ```
 
+## IBM Cloud deployment
+
+The production-style demo deployment runs SalesForge as one `linux/amd64`
+container on IBM Cloud Code Engine. The container includes the React UI,
+FastAPI/LangGraph backend, and CRM MCP service.
+
+Deployment automation and the architecture diagram live in the sibling
+AgentTrust repository:
+
+```text
+AgentTrust/docs/IBM_CLOUD_DEPLOYMENT.md
+AgentTrust/deploy/ibmcloud/deploy.sh
+```
+
 ## RBAC Matrix
 
 | Role | search | get_profile | get_billing | update_profile | update_billing |

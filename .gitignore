@@ -6,3 +6,7 @@ node_modules/
 dist/
 .venv/
 *.egg-info/
+.DS_Store
+demos/*.wav
+demos/*.mp4
+demos/_*
