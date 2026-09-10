@@ -3,11 +3,21 @@
 **Prerequisite:** The full stack is running. See `SETUP.md` if not.
 
 > **Presenter runbook:** a formatted, shareable version of this guide — with the architecture
-> diagram, the guardrail model, the decision matrix and all seven scenarios — is hosted at
-> <https://claude.ai/code/artifact/338c353b-794f-4ce0-963a-4e2ab44f72e8>.
+> diagram, the guardrail model, the decision matrix and all seven scenarios — is served by the
+> platform itself at
+> <https://agenttrust.2eksdnf1wvw1.us-south.codeengine.appdomain.cloud/demo>
+> (backup copy: <https://claude.ai/code/artifact/338c353b-794f-4ce0-963a-4e2ab44f72e8>).
 > Use that when presenting; use this file when setting up.
 
-Open two browser windows side-by-side:
+**Deployed demo (Sept 2026 release):**
+- **SalesForge app:** <https://salesforge.2eksdnf1wvw1.us-south.codeengine.appdomain.cloud>
+- **AgentTrust Admin UI:** <https://agenttrust.2eksdnf1wvw1.us-south.codeengine.appdomain.cloud/admin/>
+
+Sign in to SalesForge with any demo user (`alice@salesforge.demo` … `admin@salesforge.demo`,
+password `demo1234`). AgentTrust admin credentials are in
+`~/.config/agenttrust/sept2026-credentials.txt` on the deploying machine.
+
+Open two browser windows side-by-side — the deployed URLs above, or when running locally:
 - **SalesForge app:** http://localhost:5173
 - **AgentTrust Admin UI:** http://localhost:8080/admin/
 
