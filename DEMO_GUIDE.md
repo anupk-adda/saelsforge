@@ -2,6 +2,11 @@
 
 **Prerequisite:** The full stack is running. See `SETUP.md` if not.
 
+> **Presenter runbook:** a formatted, shareable version of this guide — with the architecture
+> diagram, the guardrail model, the decision matrix and all seven scenarios — is hosted at
+> <https://claude.ai/code/artifact/338c353b-794f-4ce0-963a-4e2ab44f72e8>.
+> Use that when presenting; use this file when setting up.
+
 Open two browser windows side-by-side:
 - **SalesForge app:** http://localhost:5173
 - **AgentTrust Admin UI:** http://localhost:8080/admin/
