@@ -85,11 +85,35 @@ _reg_agent_id: str = ""
 _reg_credential: str = ""
 _PENDING_RESUMPTIONS: dict[str, dict] = {}
 
+
+async def _ensure_registered() -> None:
+    """Register SalesForge with AgentTrust when no usable credential is cached."""
+    global _reg_agent_id, _reg_credential
+    if _reg_credential:
+        return
+    _reg_agent_id, _reg_credential = await _register_agent()
+
+
+async def _create_at_session_with_registration_retry(user_email: str, user_role: str) -> dict:
+    """Create a session, refreshing SalesForge's AgentTrust registration on stale credentials."""
+    global _reg_agent_id, _reg_credential
+    await _ensure_registered()
+    try:
+        return await _create_at_session(user_email, user_role, _reg_credential)
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code != 401:
+            raise
+
+        # AgentTrust can restart with an empty ephemeral SQLite DB in Code Engine.
+        # In that case SalesForge's cached credential is valid-looking but no
+        # longer known to AgentTrust. Re-register once and retry the session.
+        _reg_agent_id, _reg_credential = await _register_agent()
+        return await _create_at_session(user_email, user_role, _reg_credential)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _reg_agent_id, _reg_credential
     try:
-        _reg_agent_id, _reg_credential = await _register_agent()
+        await _ensure_registered()
     except Exception as e:
         print(f"[warn] AgentTrust registration failed (is it running?): {e}")
     yield
@@ -185,13 +209,9 @@ async def chat(req: ChatRequest,
                user: Annotated[dict, Depends(current_user)]):
     chat_id = str(uuid.uuid4())
 
-    if not _reg_credential:
-        raise HTTPException(status_code=503,
-                            detail="AgentTrust not connected — restart backend after starting AgentTrust")
-
     # Create AgentTrust session for this chat turn
     try:
-        at_sess = await _create_at_session(user["email"], user["role"], _reg_credential)
+        at_sess = await _create_at_session_with_registration_retry(user["email"], user["role"])
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"AgentTrust unavailable: {e}")
 

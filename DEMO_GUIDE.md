@@ -216,6 +216,94 @@ Click **Block** — the IP is added to the blocklist; further attempts are rejec
 
 ---
 
+## Scenario 7 — watsonx.governance drives the runtime (optional)
+
+> Self-contained. Requires the OpenPages MCP server running locally and
+> `agenttrust-governance/config.yaml` filled in. Scenarios 1–6 are unaffected by this
+> scenario and can be run before or after it, in any order.
+
+Scenarios 1–6 show AgentTrust enforcing a policy. This one shows **where that policy comes
+from**: the risk team's GRC system, not a file in the app repo.
+
+### Setup
+
+The SalesForge deployment is registered in watsonx.governance as the use case
+`salesforge-uc-crm-assistant`, holding:
+
+| Object | Name |
+|--|--|
+| Agent | `salesforge-aic-crm-agent` |
+| MCP server | `salesforge-mcp-crm` |
+| Tools (5) | `salesforge-tool-search-customers` … `-update-billing-card` |
+| Policy | `salesforge-pol-agent-tool-authorisation` |
+| Risk | `salesforge-risk-agent-unauthorised-tool-use` |
+| Control | `salesforge-ctl-agenttrust-tool-authorisation` |
+| KRI | `salesforge-kri-agent-denied-tool-rate` |
+
+Each tool carries a governed **Status** and **Risk Level**. The Risk Level maps onto
+AgentTrust's `min_risk_class`: Low→1, Medium→2, High→3, Very High→4.
+
+### 7a. The policy is generated, not written
+
+```bash
+cd agenttrust-governance
+python3 generate_policy.py --write
+```
+
+The generator reads the tool register out of watsonx.governance over MCP and emits
+`generated/policy.rego`. It then replays **all 25 cells** of the RBAC table above and
+confirms every decision is unchanged.
+
+**What to say:** Nobody wrote this policy by hand. The tool register in watsonx.governance
+is the source; the Rego is a build artefact. The 25/25 regression is the guarantee that
+adopting governance as the source changed no existing behaviour.
+
+### 7b. Retire a tool in watsonx.governance, watch AgentTrust revoke it
+
+In the OpenPages UI, open `salesforge-tool-update-billing-card` and set
+**watsonx-AITool:Status** from `Active` to `Retired`. Save.
+
+Re-run the generator, then paste `generated/policy.rego` into the AgentTrust Admin UI →
+**Policy** → Simulate, with this input:
+
+```json
+{
+  "identity": {"agent_id":"salesforge-agent","agent_lifecycle":"active","risk_class":"2","role":"admin"},
+  "action": {"tool":"update_billing_card"},
+  "session": {"scope_fence":["update_billing_card"],"calls_made":3,"max_calls":500},
+  "risk": {"score":0.1,"thresholds":{"1":0.85,"2":0.70,"3":0.50,"4":0.30}}
+}
+```
+
+| Role | Before | After retirement |
+|--|--|--|
+| billing_admin | allow | **deny** |
+| sales_manager | step_up | **deny** |
+| admin | allow | **deny** |
+
+Every other tool is unchanged.
+
+**What to say:** The risk team retired that tool in their own system. They did not touch
+the agent, the gateway, or a policy file. Note that **admin is denied too** — role grants
+nothing once governance withdraws the tool. This is the difference between a policy
+document that describes a control and a control that actually executes.
+
+### 7c. Shadow IT is denied by default
+
+Same Simulate box, add an unregistered MCP server to the action:
+
+```json
+"action": {"tool":"search_customers","mcp_server":"shadow-it-mcp-server"}
+```
+
+Result: **deny**. Swap it for `salesforge-mcp-crm` and it allows.
+
+**What to say:** An agent reaching an MCP server nobody registered gets denied — not
+because a rule named it, but because governance never approved it. Deny-by-default applies
+to infrastructure, not just to actions.
+
+---
+
 ## What changed in AgentTrust
 
 After running the scenarios, open the **AgentTrust Admin UI** to explore what was recorded.
