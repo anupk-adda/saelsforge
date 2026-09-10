@@ -233,9 +233,21 @@ Click **Block** — the IP is added to the blocklist; further attempts are rejec
 
 ## Scenario 7 — watsonx.governance drives the runtime (optional)
 
-> Self-contained. Requires the OpenPages MCP server running locally and
-> `agenttrust-governance/config.yaml` filled in. Scenarios 1–6 are unaffected by this
-> scenario and can be run before or after it, in any order.
+> **Hosted — nothing to install.** Open the governance console:
+> <https://governance.2eksdnf1wvw1.us-south.codeengine.appdomain.cloud>
+> It reads the register live over MCP from a private service running beside AgentTrust.
+> Scenarios 1–6 are unaffected and can be run before or after it, in any order.
+>
+> Everything in this scenario is a dry run: no policy bundle is uploaded, nothing is
+> activated, and the register is never written to. Run it as many times as you like —
+> there is nothing to reset afterwards.
+>
+> A `snapshot` or `cache` badge means watsonx.governance is unreachable and the register
+> is coming from the last good read. Every step still works; say so and carry on.
+>
+> The local path still exists — `python3 generate_policy.py --write` against a local MCP
+> server, with `agenttrust-governance/config.yaml` filled in — but it is no longer needed
+> to present this scenario.
 
 Scenarios 1–6 show AgentTrust enforcing a policy. This one shows **where that policy comes
 from**: the risk team's GRC system, not a file in the app repo.
@@ -259,6 +271,9 @@ Each tool carries a governed **Status** and **Risk Level**. The Risk Level maps 
 AgentTrust's `min_risk_class`: Low→1, Medium→2, High→3, Very High→4.
 
 ### 7a. The policy is generated, not written
+
+In the governance console click **Read live register**, then **Generate — as registered**,
+then **Run the 25-cell regression**. To run it from a laptop instead:
 
 ```bash
 cd agenttrust-governance
