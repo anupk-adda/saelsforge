@@ -78,7 +78,7 @@ Watch the canvas:
 
 ### 1b. Billing update — red deny
 
-Click the chip: **"Change John Smith's credit card on file"**
+Click the chip: **"Change John Smith's credit card on file to Visa ending in 4321"**
 
 Watch the canvas:
 1. `GovernedMCPClient` → `AgentTrust` activate
@@ -95,7 +95,7 @@ Watch the canvas:
 
 Click **"Switch User"** → sign in as **Carol**.
 
-Click the same chip: **"Change John Smith's credit card on file"**
+Click the same chip: **"Change John Smith's credit card on file to Visa ending in 4321"**
 
 Watch the canvas:
 1. All nodes go **green** all the way through to SQLite

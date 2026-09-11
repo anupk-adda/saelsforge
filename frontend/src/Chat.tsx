@@ -1,10 +1,14 @@
 import { useState, useRef, useEffect } from "react";
 import type { Message, User } from "./types";
 
+// Every chip must name enough detail for the agent to actually call the tool.
+// "Change John Smith's credit card on file" was removed: with no card number or
+// type the model asks a clarifying question instead of calling
+// update_billing_card, so no governance decision is ever made and the scenario
+// silently does nothing.
 const PROMPT_CHIPS = [
   "Find John Smith and show me his profile and billing information",
   "Update John Smith's address to 123 Main St, New York",
-  "Change John Smith's credit card on file",
   "Change John Smith's credit card on file to Visa ending in 4321",
 ];
 
